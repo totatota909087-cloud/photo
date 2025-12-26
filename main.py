@@ -1,11 +1,31 @@
-import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
-import asyncio
+
+import subprocess
+import sys
 import time
 import threading
 from flask import Flask, jsonify
 import requests
+
+# تثبيت المكتبات المطلوبة تلقائياً
+def install_packages():
+    required_packages = ['python-telegram-bot', 'flask', 'requests']
+    for package in required_packages:
+        try:
+            __import__(package.replace('-', '_'))
+            print(f"✅ {package} مثبت بالفعل")
+        except ImportError:
+            print(f"📦 جاري تثبيت {package}...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+            print(f"✅ تم تثبيت {package} بنجاح")
+
+# تثبيت المكتبات
+install_packages()
+
+# الآن استيراد المكتبات بعد التثبيت
+import logging
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
+import asyncio
 
 # تمكين التسجيل للتصحيح
 logging.basicConfig(
@@ -37,7 +57,8 @@ def home():
         "status": "online",
         "service": "Telegram Bot",
         "time": time.strftime('%Y-%m-%d %H:%M:%S'),
-        "message": "Bot is running!"
+        "message": "Bot is running!",
+        "developer": DEVELOPER_USERNAME
     })
 
 @app.route('/health')
@@ -45,7 +66,8 @@ def health_check():
     """فحص صحة البوت"""
     return jsonify({
         "status": "healthy",
-        "timestamp": time.time()
+        "timestamp": time.time(),
+        "uptime": time.strftime('%H:%M:%S')
     })
 
 @app.route('/keepalive')
@@ -53,12 +75,13 @@ def keep_alive_endpoint():
     """نقطة نهاية للحفاظ على البوت نشط"""
     return jsonify({
         "message": "Keep-alive triggered",
-        "time": time.strftime('%Y-%m-%d %H:%M:%S')
+        "time": time.strftime('%Y-%m-%d %H:%M:%S'),
+        "bot": "Active"
     })
 
 def run_flask():
     """تشغيل خادم Flask"""
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
 
 # دالة بدء المحادثة
 async def start(update: Update, context: CallbackContext) -> int:
@@ -218,11 +241,27 @@ async def help_command(update: Update, context: CallbackContext):
 # دالة للحفاظ على البوت نشط باستخدام Flask
 def keep_alive_with_flask():
     """تشغيل Flask في thread منفصل"""
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    print("✅ Flask server started on port 8080")
-    print("🌐 Access: http://0.0.0.0:8080")
-    print("🔄 Use uptime services to ping: http://0.0.0.0:8080/keepalive")
+    try:
+        flask_thread = threading.Thread(target=run_flask, daemon=True)
+        flask_thread.start()
+        print("✅ Flask server started on port 8080")
+        print("🌐 Access: http://0.0.0.0:8080")
+    except Exception as e:
+        print(f"⚠️ خطأ في تشغيل Flask: {e}")
+
+# دالة ذاتية للحفاظ على النشاط
+def self_ping():
+    """إرسال طلبات ذاتية للحفاظ على البوت نشط"""
+    while True:
+        try:
+            # إرسال طلب إلى نفس الخادم
+            response = requests.get('http://0.0.0.0:8080/keepalive', timeout=5)
+            print(f"[{time.strftime('%H:%M:%S')}] 🔄 Self-ping sent, Status: {response.status_code}")
+        except Exception as e:
+            print(f"[{time.strftime('%H:%M:%S')}] ⚠️ Self-ping failed: {e}")
+        
+        # الانتظار 5 دقائق قبل الإرسال التالي
+        time.sleep(300)
 
 # دالة لطباعة رسالة التشغيل
 def print_banner():
@@ -232,36 +271,37 @@ def print_banner():
     print("="*60)
     print(f"⏰ Start Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
+    print("📦 Installed Packages: python-telegram-bot, flask, requests")
+    print("="*60)
     print("📡 Flask Integration for 24/7 Uptime:")
     print("🌐 Web Server: http://0.0.0.0:8080")
     print("❤️ Health Check: http://0.0.0.0:8080/health")
     print("🔗 Keep-alive: http://0.0.0.0:8080/keepalive")
     print("="*60)
     print("💡 To keep bot alive 24/7:")
-    print("1. Use UptimeRobot.com")
-    print("2. Set monitor to ping: http://0.0.0.0:8080/keepalive")
-    print("3. Set interval to 5 minutes")
+    print("1. Use UptimeRobot.com (Free)")
+    print("2. Set URL: http://0.0.0.0:8080/keepalive")
+    print("3. Set interval: 5 minutes")
     print("="*60 + "\n")
-
-# دالة ذاتية للحفاظ على النشاط
-def self_ping():
-    """إرسال طلبات ذاتية للحفاظ على البوت نشط"""
-    while True:
-        try:
-            # إرسال طلب إلى نفس الخادم
-            response = requests.get('http://0.0.0.0:8080/keepalive', timeout=10)
-            print(f"[{time.strftime('%H:%M:%S')}] 🔄 Self-ping sent, Status: {response.status_code}")
-        except:
-            print(f"[{time.strftime('%H:%M:%S')}] ⚠️ Self-ping failed, Flask may be starting")
-        
-        # الانتظار 10 دقائق قبل الإرسال التالي
-        time.sleep(600)
 
 # دالة الرئيسية
 def main() -> None:
     """تشغيل البوت."""
     # توكن البوت
     TOKEN = "8494446795:AAHMAZFOI-KHtxSwLAxBtShQxd0c5yhnmC4"
+    
+    # طباعة بانر التشغيل
+    print_banner()
+    
+    # تشغيل Flask في thread منفصل
+    keep_alive_with_flask()
+    
+    # انتظار قليل لبدء Flask
+    time.sleep(2)
+    
+    # بدء نظام self-ping
+    self_ping_thread = threading.Thread(target=self_ping, daemon=True)
+    self_ping_thread.start()
     
     # إنشاء تطبيق Telegram
     application = Application.builder().token(TOKEN).build()
@@ -286,31 +326,13 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("cancel", cancel))
     
-    # بدء البوت
-    print_banner()
-    
-    # تشغيل Flask في thread منفصل
-    keep_alive_with_flask()
-    
-    # بدء نظام self-ping
-    self_ping_thread = threading.Thread(target=self_ping, daemon=True)
-    self_ping_thread.start()
-    
     print("✅ Telegram bot started successfully!")
     print("📱 Send /start to the bot to begin")
-    print("🔄 Auto keep-alive enabled with self-ping every 10 minutes")
+    print("🔄 Auto keep-alive enabled with self-ping every 5 minutes")
+    print("⚡ Bot is now ready to receive requests!")
     
     # تشغيل البوت
     application.run_polling()
 
 if __name__ == '__main__':
-    # تثبيت الحزم المطلوبة إذا لم تكن مثبتة
-    try:
-        import flask
-    except ImportError:
-        print("Installing required packages...")
-        import subprocess
-        subprocess.check_call(["pip", "install", "flask", "requests"])
-        print("Packages installed successfully!")
-    
     main()

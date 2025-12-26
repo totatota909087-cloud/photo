@@ -1,8 +1,8 @@
-
 import subprocess
 import sys
 import time
 import threading
+import os
 from flask import Flask, jsonify
 import requests
 
@@ -57,7 +57,7 @@ def home():
         "status": "online",
         "service": "Telegram Bot",
         "time": time.strftime('%Y-%m-%d %H:%M:%S'),
-        "message": "Bot is running!",
+        "message": "Bot is running on Render!",
         "developer": DEVELOPER_USERNAME
     })
 
@@ -67,7 +67,7 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "timestamp": time.time(),
-        "uptime": time.strftime('%H:%M:%S')
+        "platform": "Render.com"
     })
 
 @app.route('/keepalive')
@@ -81,7 +81,8 @@ def keep_alive_endpoint():
 
 def run_flask():
     """تشغيل خادم Flask"""
-    app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 # دالة بدء المحادثة
 async def start(update: Update, context: CallbackContext) -> int:
@@ -234,7 +235,7 @@ async def help_command(update: Update, context: CallbackContext):
 
 <b>👨‍💻 المطور:</b> حمزه {DEVELOPER_USERNAME}
 
-<b>🌐 البوت يعمل مع Flask للحفاظ على النشاط</b>"""
+<b>🌐 البوت مستضاف على Render.com</b>"""
     
     await update.message.reply_text(help_text, parse_mode='HTML')
 
@@ -244,44 +245,26 @@ def keep_alive_with_flask():
     try:
         flask_thread = threading.Thread(target=run_flask, daemon=True)
         flask_thread.start()
-        print("✅ Flask server started on port 8080")
-        print("🌐 Access: http://0.0.0.0:8080")
+        print("✅ Flask server started")
+        print(f"🌐 Running on port: {os.environ.get('PORT', 10000)}")
     except Exception as e:
         print(f"⚠️ خطأ في تشغيل Flask: {e}")
-
-# دالة ذاتية للحفاظ على النشاط
-def self_ping():
-    """إرسال طلبات ذاتية للحفاظ على البوت نشط"""
-    while True:
-        try:
-            # إرسال طلب إلى نفس الخادم
-            response = requests.get('http://0.0.0.0:8080/keepalive', timeout=5)
-            print(f"[{time.strftime('%H:%M:%S')}] 🔄 Self-ping sent, Status: {response.status_code}")
-        except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] ⚠️ Self-ping failed: {e}")
-        
-        # الانتظار 5 دقائق قبل الإرسال التالي
-        time.sleep(300)
 
 # دالة لطباعة رسالة التشغيل
 def print_banner():
     """طباعة رسالة ترحيبية عند تشغيل البوت"""
     print("\n" + "="*60)
-    print("🤖 TELEGRAM BOT STARTED SUCCESSFULLY!")
+    print("🤖 TELEGRAM BOT - RENDER.COM DEPLOYMENT")
     print("="*60)
     print(f"⏰ Start Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
-    print("📦 Installed Packages: python-telegram-bot, flask, requests")
+    print("🚀 Deployment Platform: Render.com")
+    print(f"🌐 Port: {os.environ.get('PORT', 10000)}")
     print("="*60)
-    print("📡 Flask Integration for 24/7 Uptime:")
-    print("🌐 Web Server: http://0.0.0.0:8080")
-    print("❤️ Health Check: http://0.0.0.0:8080/health")
-    print("🔗 Keep-alive: http://0.0.0.0:8080/keepalive")
-    print("="*60)
-    print("💡 To keep bot alive 24/7:")
-    print("1. Use UptimeRobot.com (Free)")
-    print("2. Set URL: http://0.0.0.0:8080/keepalive")
-    print("3. Set interval: 5 minutes")
+    print("📦 Auto-installed Packages:")
+    print("- python-telegram-bot")
+    print("- flask")
+    print("- requests")
     print("="*60 + "\n")
 
 # دالة الرئيسية
@@ -297,11 +280,7 @@ def main() -> None:
     keep_alive_with_flask()
     
     # انتظار قليل لبدء Flask
-    time.sleep(2)
-    
-    # بدء نظام self-ping
-    self_ping_thread = threading.Thread(target=self_ping, daemon=True)
-    self_ping_thread.start()
+    time.sleep(3)
     
     # إنشاء تطبيق Telegram
     application = Application.builder().token(TOKEN).build()
@@ -326,10 +305,10 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("cancel", cancel))
     
-    print("✅ Telegram bot started successfully!")
+    print("✅ Telegram bot started successfully on Render!")
     print("📱 Send /start to the bot to begin")
-    print("🔄 Auto keep-alive enabled with self-ping every 5 minutes")
     print("⚡ Bot is now ready to receive requests!")
+    print("🔗 Web Server is running and keeping bot alive")
     
     # تشغيل البوت
     application.run_polling()
